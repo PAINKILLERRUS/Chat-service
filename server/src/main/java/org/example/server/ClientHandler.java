@@ -11,10 +11,10 @@ public class ClientHandler {
     private DataInputStream in;
     private DataOutputStream out;
     private String nickname;
+    private Role role;
 
-    public String setNickname(String nickname) {
-        this.nickname = nickname;
-        return nickname;
+    public Role getRoles() {
+        return role;
     }
 
     public String getNickname() {
@@ -34,8 +34,6 @@ public class ClientHandler {
                 }
             } catch (IOException e) {
                 e.printStackTrace();
-            } finally {
-                disconnect();
             }
         }).start();
     }
@@ -53,9 +51,14 @@ public class ClientHandler {
             String msg = in.readUTF();
             if (msg.startsWith("/auth ")) {
                 String[] tokens = msg.split(" ");
+                if (tokens.length != 3) {
+                    sendMessage("Некорректный формат запроса.");
+                    continue;
+                }
                 String login = tokens[1];
                 String password = tokens[2];
                 String nickname = server.getAuthenticationService().getNicknameByLoginAndPassword(login, password);
+                Role role = server.getAuthenticationService().getRoleByLoginAndPassword(login, password);
                 if (nickname == null) {
                     sendMessage("Неверный логин/пароль");
                     continue;
@@ -65,8 +68,34 @@ public class ClientHandler {
                     continue;
                 }
                 this.nickname = nickname;
+                this.role = role;
                 server.subscribe(this);
                 sendMessage(nickname + " , добро пожаловать в чат!");
+                return true;
+            } else if (msg.startsWith("/register ")) {
+                String[] tokens = msg.split(" ");
+                if (tokens.length != 4) {
+                    sendMessage("Некорректный формат запроса.");
+                    continue;
+                }
+                String login = tokens[1];
+                String password = tokens[2];
+                String nickname = tokens[3];
+                if (server.getAuthenticationService().isLoginAlreadyExist(login)) {
+                    sendMessage("Указанный логин уже занят");
+                    continue;
+                }
+                if (server.getAuthenticationService().isNicknameAlreadyExist(nickname)) {
+                    sendMessage("Указынный никнейм занят");
+                    continue;
+                }
+                if (!server.getAuthenticationService().register(login, password, nickname)) {
+                    sendMessage("Не удалось пройти регистрацию");
+                    continue;
+                }
+                this.nickname = nickname;
+                server.subscribe(this);
+                sendMessage("Вы успешно зарегистрировались " + nickname + " , добро пожаловать в чат!");
                 return true;
             } else if (msg.equals("/exit")) {
                 return false;
@@ -88,6 +117,15 @@ public class ClientHandler {
                     String nick = tokens[1];
                     String message = msg.substring(4 + nick.length());
                     server.privateMessage(this, nick, message);
+                }
+                if (msg.startsWith("/kick") && role == Role.ADMIN) {
+                    String[] tokens = msg.split(" ");
+                    if (tokens.length != 2) {
+                        sendMessage("Некорректный ввод команды.");
+                        continue;
+                    }
+                    String nick = tokens[1];
+                    server.kick(this, nick);
                 }
                 continue;
             }

@@ -48,6 +48,17 @@ public class Server {
         broadcastMessage("Из чата вышел " + clientHandler.getNickname());
     }
 
+    public synchronized void kick(ClientHandler clientHandler, String nick) {
+        for (ClientHandler c : clients) {
+            if (c.getNickname().equals(nick)) {
+                c.sendMessage("Администратор: " + clientHandler.getNickname() + " удалил из чата клиента " + nick);
+                broadcastMessage("Из чата удален: " + c.getNickname());
+                c.disconnect();
+                return;
+            }
+        }
+    }
+
     public synchronized void broadcastMessage(String message) {
         for (ClientHandler c : clients) {
             c.sendMessage(message);
